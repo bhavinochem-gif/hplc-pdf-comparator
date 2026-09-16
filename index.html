@@ -20,7 +20,7 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Header-Aware Client-Side PDF & Excel Alignment Tool</p>
+            <p class="text-xs text-indigo-200">Header-Aware Client-Side PDF & Excel Alignment Tool with Threshold Filtering</p>
         </div>
         <div class="flex gap-3">
             <button onclick="loadSampleData()" class="bg-indigo-700 hover:bg-indigo-600 text-xs px-3 py-2 rounded font-medium transition">Load Demo Data</button>
@@ -52,19 +52,22 @@
 
             <!-- Settings Panel -->
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                <div>
-                    <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">Alignment Settings</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Retention Time Tolerance (&Delta;t<sub>R</sub>): <span id="tol-val" class="font-bold text-indigo-600">0.08</span> min</label>
-                            <input type="range" id="tolerance-range" min="0.01" max="0.30" step="0.01" value="0.08" class="w-full accent-indigo-600" oninput="document.getElementById('tol-val').innerText=this.value; triggerRealign();">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Reference Peak for RRT</label>
-                            <select id="rrt-ref-select" class="w-full text-xs border border-slate-300 rounded p-2 bg-white" onchange="triggerRealign()">
-                                <option value="auto">Auto-detect Main Peak (Max Area)</option>
-                            </select>
-                        </div>
+                <div class="space-y-4">
+                    <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wider">Alignment & Filters</h2>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Retention Time Tolerance (&Delta;t<sub>R</sub>): <span id="tol-val" class="font-bold text-indigo-600">0.08</span> min</label>
+                        <input type="range" id="tolerance-range" min="0.01" max="0.30" step="0.01" value="0.08" class="w-full accent-indigo-600" oninput="document.getElementById('tol-val').innerText=this.value; triggerRealign();">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Reporting Threshold (% Area Cutoff)</label>
+                        <input type="number" id="threshold-input" min="0" max="100" step="0.01" value="0.00" class="w-full text-xs border border-slate-300 rounded p-2 bg-white font-mono font-bold text-indigo-600" oninput="triggerRealign()" placeholder="e.g. 0.05 or 0.10">
+                        <p class="text-[10px] text-slate-400 mt-1">Hides peaks / cells below this % area value</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Reference Peak for RRT</label>
+                        <select id="rrt-ref-select" class="w-full text-xs border border-slate-300 rounded p-2 bg-white" onchange="triggerRealign()">
+                            <option value="auto">Auto-detect Main Peak (Max Area)</option>
+                        </select>
                     </div>
                 </div>
                 <div class="mt-6">
@@ -89,7 +92,7 @@
                 <div class="flex items-center gap-4 text-xs">
                     <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-100 border border-emerald-300"></span> Matched</span>
                     <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-100 border border-rose-300"></span> New / Impurity</span>
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-100 border border-slate-300"></span> Missing / Blank</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-100 border border-slate-300"></span> Missing / Filtered / Blank</span>
                 </div>
             </div>
             <div class="overflow-x-auto flex-1 max-h-[550px]">
@@ -115,7 +118,7 @@
 
     <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Header-Aware Dynamic Mapping Engine
+        HPLC Automated PDF & Excel Sync Comparator • Header-Aware Dynamic Mapping & Threshold Engine
     </footer>
 
     <!-- Application Script -->
@@ -149,7 +152,7 @@
             renderUI();
         }
 
-        // Upgraded Header-Aware PDF Parser
+        // Header-Aware PDF Parser
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -166,7 +169,6 @@
                         y: Math.round(item.transform[5])
                     }));
 
-                    // Group text items into rows by vertical position (y threshold ~4px)
                     let rowsMap = {};
                     items.forEach(item => {
                         let matchedY = Object.keys(rowsMap).find(y => Math.abs(y - item.y) < 4);
@@ -177,14 +179,12 @@
                         }
                     });
 
-                    // Sort rows from top to bottom of page (descending y coordinates in PDF space)
                     let sortedYs = Object.keys(rowsMap).sort((a, b) => b - a);
 
                     let rtColIdx = -1;
                     let areaColIdx = -1;
                     let headerFound = false;
 
-                    // Pass 1: Scan rows to find the HPLC table header and dynamically map column indexes
                     for (let y of sortedYs) {
                         let rowItems = rowsMap[y].sort((a, b) => a.x - b.x);
                         let rowJoined = rowItems.map(item => item.str.toLowerCase()).join(' ');
@@ -201,7 +201,6 @@
                                 }
                             });
 
-                            // Fallback if specific header words were split across cells
                             if (rtColIdx === -1) {
                                 rowItems.forEach((item, index) => {
                                     if (item.str.toLowerCase().includes('rt') || item.str.toLowerCase().includes('ret')) rtColIdx = index;
@@ -217,7 +216,6 @@
                                 headerFound = true;
                                 let headerY = parseFloat(y);
                                 
-                                // Pass 2: Read data rows situated strictly below the header row
                                 for (let dataY of sortedYs) {
                                     if (parseFloat(dataY) < headerY) {
                                         let dataRow = rowsMap[dataY].sort((a, b) => a.x - b.x);
@@ -225,7 +223,6 @@
                                         let rtVal = parseFloat(dataRow[rtColIdx]?.str);
                                         let areaVal = areaColIdx !== -1 ? parseFloat(dataRow[areaColIdx]?.str) : NaN;
 
-                                        // Fallback numeric distribution scan if column index mapping misses
                                         if (isNaN(rtVal) || isNaN(areaVal)) {
                                             let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
                                             if (isNaN(rtVal)) rtVal = nums.find(n => n > 0.05 && n < 60);
@@ -244,7 +241,6 @@
                         }
                     }
 
-                    // If no structured table header was matched, fall back to universal numeric scanning on the page
                     if (!headerFound) {
                         sortedYs.forEach(dataY => {
                             let dataRow = rowsMap[dataY].sort((a, b) => a.x - b.x);
@@ -262,14 +258,12 @@
                     }
                 }
 
-                // Ultimate fallback mock if PDF text extraction returns empty (e.g. scanned image PDFs)
                 if (extractedPeaks.length === 0) {
                     extractedPeaks = generateMockPeaksForDemo(file.name);
                 }
 
                 extractedPeaks.sort((a, b) => a.rt - b.rt);
                 
-                // Avoid duplicate dataset names
                 globalDatasets = globalDatasets.filter(d => d.name !== file.name);
                 globalDatasets.push({ name: file.name, peaks: extractedPeaks });
 
@@ -289,7 +283,7 @@
             if (jsonData.length < 2) return;
 
             let headers = jsonData[0];
-            let fileCols = headers.slice(3); // Assuming columns are Peak #, RT, RRT, then file area columns
+            let fileCols = headers.slice(3);
             let importedDatasets = fileCols.map(colName => ({ name: colName, peaks: [] }));
 
             for (let r = 1; r < jsonData.length; r++) {
@@ -317,9 +311,12 @@
             let count = seedName.includes('20') ? 20 : 8;
             let peaks = [];
             let baseRt = 1.2;
+            // Include micro-impurities like 0.01, 0.04, 0.08, 0.13, 1.20, 95.0 to test threshold filtering
+            let sampleAreas = [95.0, 1.20, 0.13, 0.08, 0.05, 0.01, 0.04, 0.15, 2.30, 0.02];
             for (let i = 1; i <= count; i++) {
                 baseRt += parseFloat((Math.random() * 1.5 + 0.5).toFixed(2));
-                peaks.push({ rt: baseRt, area: parseFloat((Math.random() * 40 + 0.1).toFixed(2)) });
+                let area = sampleAreas[(i - 1) % sampleAreas.length];
+                peaks.push({ rt: baseRt, area: area });
             }
             return peaks;
         }
@@ -329,46 +326,21 @@
                 {
                     name: 'Batch_Standard_Ref.pdf',
                     peaks: [
-                        { rt: 2.15, area: 1.25 },
-                        { rt: 4.32, area: 4.50 },
-                        { rt: 6.80, area: 85.40 },
-                        { rt: 9.12, area: 3.10 },
-                        { rt: 12.45, area: 5.75 }
+                        { rt: 2.15, area: 0.01 },
+                        { rt: 4.32, area: 0.04 },
+                        { rt: 6.80, area: 95.00 },
+                        { rt: 9.12, area: 1.20 },
+                        { rt: 12.45, area: 0.08 }
                     ]
                 },
                 {
-                    name: 'Batch_Sample_A_8peaks.pdf',
+                    name: 'Batch_Sample_A.pdf',
                     peaks: [
-                        { rt: 2.16, area: 1.30 },
-                        { rt: 4.35, area: 4.20 },
-                        { rt: 6.81, area: 86.10 },
-                        { rt: 9.15, area: 2.90 },
-                        { rt: 12.48, area: 5.40 }
-                    ]
-                },
-                {
-                    name: 'Batch_Degraded_B_20peaks.pdf',
-                    peaks: [
-                        { rt: 1.85, area: 0.45 },
-                        { rt: 2.14, area: 1.20 },
-                        { rt: 3.10, area: 0.85 },
-                        { rt: 4.33, area: 4.10 },
-                        { rt: 5.20, area: 0.50 },
-                        { rt: 6.79, area: 81.20 },
-                        { rt: 7.55, area: 0.30 },
-                        { rt: 9.13, area: 2.80 },
-                        { rt: 10.20, area: 0.65 },
-                        { rt: 12.46, area: 5.15 },
-                        { rt: 14.10, area: 0.70 },
-                        { rt: 15.80, area: 0.40 },
-                        { rt: 16.90, area: 0.35 },
-                        { rt: 18.20, area: 0.25 },
-                        { rt: 19.50, area: 0.20 },
-                        { rt: 21.10, area: 0.15 },
-                        { rt: 22.40, area: 0.10 },
-                        { rt: 23.80, area: 0.10 },
-                        { rt: 25.10, area: 0.05 },
-                        { rt: 27.00, area: 0.05 }
+                        { rt: 2.16, area: 0.05 },
+                        { rt: 4.35, area: 0.13 },
+                        { rt: 6.81, area: 94.50 },
+                        { rt: 9.15, area: 1.25 },
+                        { rt: 12.48, area: 0.09 }
                     ]
                 }
             ];
@@ -389,9 +361,10 @@
             }
         }
 
-        // Core Alignment Algorithm (Auto-Sync & Blank Space Padding)
+        // Core Alignment Algorithm with Threshold Filtering
         function buildMasterAlignment() {
-            const tolerance = parseFloat(document.getElementById('tolerance-range').value);
+            const tolerance = parseFloat(document.getElementById('tolerance-range').value) || 0.08;
+            const threshold = parseFloat(document.getElementById('threshold-input').value) || 0;
             let masterPeaksMap = [];
 
             globalDatasets.forEach(dataset => {
@@ -432,22 +405,42 @@
                 refRt = parseFloat(refSelect);
             }
 
-            masterMatrix = masterPeaksMap.map((m, index) => {
+            // Map and filter out values below threshold
+            let unfilteredMatrix = masterPeaksMap.map((m) => {
                 let meanRt = m.rtSum / m.count;
                 let rrt = refRt > 0 ? (meanRt / refRt).toFixed(3) : '1.000';
                 
                 let areas = {};
+                let hasValidArea = false;
+                
                 globalDatasets.forEach(ds => {
-                    areas[ds.name] = m.fileAreas[ds.name] !== undefined ? m.fileAreas[ds.name] : null;
+                    let val = m.fileAreas[ds.name];
+                    if (val !== undefined && val >= threshold) {
+                        areas[ds.name] = val;
+                        hasValidArea = true;
+                    } else {
+                        areas[ds.name] = null; // Below threshold or missing
+                    }
                 });
 
                 return {
-                    id: index + 1,
                     rt: meanRt.toFixed(2),
                     rrt: rrt,
-                    areas: areas
+                    areas: areas,
+                    hasValidArea: hasValidArea
                 };
             });
+
+            // Discard master rows where all datasets are below the threshold
+            let filteredMatrix = unfilteredMatrix.filter(row => row.hasValidArea);
+
+            // Re-index sequentially
+            masterMatrix = filteredMatrix.map((row, index) => ({
+                id: index + 1,
+                rt: row.rt,
+                rrt: row.rrt,
+                areas: row.areas
+            }));
 
             updateRrtDropdown(masterPeaksMap);
         }
@@ -494,7 +487,7 @@
 
             const tbody = document.getElementById('table-body');
             if (masterMatrix.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${3 + Math.max(1, globalDatasets.length)}" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet. Drop files above or load demo data.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${3 + Math.max(1, globalDatasets.length)}" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet (or all peaks filtered out by threshold).</td></tr>`;
                 return;
             }
 
@@ -527,7 +520,7 @@
             renderUI();
         }
 
-        // Export Excel with Color Coding Structure
+        // Export Excel with Filtered View & Color Coding Structure
         function exportToExcel() {
             if (masterMatrix.length === 0) {
                 alert("No data to export!");
