@@ -20,7 +20,7 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Unified Peak Name, Retention Time & % Area Alignment Engine</p>
+            <p class="text-xs text-indigo-200">Advanced Union Peak Alignment & Blank-Space Auto-Padding Engine</p>
         </div>
         <div class="flex gap-3">
             <button onclick="loadSampleData()" class="bg-indigo-700 hover:bg-indigo-600 text-xs px-3 py-2 rounded font-medium transition">Load Demo Data</button>
@@ -40,7 +40,7 @@
                     <div id="drop-zone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-lg p-6 text-center cursor-pointer bg-indigo-50/50 transition flex flex-col items-center justify-center">
                         <svg class="w-10 h-10 text-indigo-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <p class="text-sm font-medium text-slate-700">Drag & drop HPLC PDF reports or Excel (.xlsx) files here</p>
-                        <p class="text-xs text-slate-500 mt-1">Extracts Peak Name, RT, and % Area with strict range validation</p>
+                        <p class="text-xs text-slate-500 mt-1">Automatic union alignment of common and uncommon RT peaks with blank padding</p>
                         <input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xls" class="hidden">
                     </div>
                 </div>
@@ -90,9 +90,9 @@
             <div class="bg-slate-100 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
                 <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Aligned Peak Comparison Matrix</h3>
                 <div class="flex items-center gap-4 text-xs">
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-100 border border-emerald-300"></span> Matched</span>
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-100 border border-rose-300"></span> New / Impurity</span>
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-100 border border-slate-300"></span> Missing / Filtered / Blank</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-100 border border-emerald-300"></span> Matched Common</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-100 border border-rose-300"></span> Uncommon / Impurity</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-100 border border-slate-300"></span> Missing / Blank</span>
                 </div>
             </div>
             <div class="overflow-x-auto flex-1 max-h-[550px]">
@@ -119,7 +119,7 @@
 
     <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Unified Peak Name & Alignment Engine
+        HPLC Automated PDF & Excel Sync Comparator • Union Alignment & Blank-Padding Engine
     </footer>
 
     <!-- Application Script -->
@@ -153,7 +153,7 @@
             renderUI();
         }
 
-        // Header-Aware PDF Parser with Peak Name Extraction & Strict Range Validation
+        // Header-Aware PDF Parser with Strict Range Validation
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -220,7 +220,6 @@
                                         if (rtVal !== undefined) {
                                             let finalArea = (areaVal !== undefined && areaVal <= 100.0) ? areaVal : 0.01;
                                             
-                                            // Extract Peak Name if column is mapped and text item exists
                                             let peakName = '';
                                             if (nameColIdx !== -1 && dataRow[nameColIdx]) {
                                                 let str = dataRow[nameColIdx].str;
@@ -331,8 +330,10 @@
                         { rt: 26.05, area: 0.01, peakName: '' },
                         { rt: 27.16, area: 0.01, peakName: 'Desfluro olaparib' },
                         { rt: 28.79, area: 99.79, peakName: 'Olaparib' },
-                        { rt: 29.68, area: 0.06, peakName: '' },
-                        { rt: 33.88, area: 0.03, peakName: '' },
+                        { rt: 29.62, area: 0.06, peakName: '' },
+                        { rt: 33.32, area: 0.02, peakName: '' },
+                        { rt: 33.89, area: 0.03, peakName: '' },
+                        { rt: 34.41, area: 0.04, peakName: '' },
                         { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
                         { rt: 40.11, area: 0.01, peakName: '' }
                     ]
@@ -340,15 +341,13 @@
                 {
                     name: 'Olaparib_Batch_04.pdf',
                     peaks: [
-                        { rt: 15.30, area: 0.01, peakName: '' },
                         { rt: 25.14, area: 0.01, peakName: 'Acid compound' },
-                        { rt: 26.08, area: 0.01, peakName: '' },
-                        { rt: 27.18, area: 0.01, peakName: 'Desfluro olaparib' },
+                        { rt: 27.17, area: 0.01, peakName: 'Desfluro olaparib' },
                         { rt: 28.80, area: 99.85, peakName: 'Olaparib' },
-                        { rt: 29.70, area: 0.06, peakName: '' },
-                        { rt: 33.90, area: 0.03, peakName: '' },
-                        { rt: 38.00, area: 0.07, peakName: 'Olaparib dimer' },
-                        { rt: 40.15, area: 0.01, peakName: '' }
+                        { rt: 29.68, area: 0.06, peakName: '' },
+                        { rt: 33.88, area: 0.03, peakName: '' },
+                        { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
+                        { rt: 40.12, area: 0.01, peakName: '' }
                     ]
                 }
             ];
@@ -369,39 +368,67 @@
             }
         }
 
-        // Core Alignment Algorithm with Peak Name Consolidation
+        // Robust Union Master Alignment Engine (Prevents Overwrites & Auto-Padding)
         function buildMasterAlignment() {
             const tolerance = parseFloat(document.getElementById('tolerance-range').value) || 0.08;
             const threshold = parseFloat(document.getElementById('threshold-input').value) || 0;
             let masterPeaksMap = [];
 
-            globalDatasets.forEach(dataset => {
+            if (globalDatasets.length === 0) {
+                masterMatrix = [];
+                return;
+            }
+
+            // Initialize master list with dataset 1
+            globalDatasets[0].peaks.forEach(peak => {
+                let fileAreas = {};
+                fileAreas[globalDatasets[0].name] = peak.area;
+                masterPeaksMap.push({
+                    rt: peak.rt,
+                    rtSum: peak.rt,
+                    count: 1,
+                    peakName: peak.peakName || '',
+                    fileAreas: fileAreas
+                });
+            });
+
+            // Sequentially merge subsequent datasets without overwriting
+            for (let i = 1; i < globalDatasets.length; i++) {
+                let dataset = globalDatasets[i];
                 dataset.peaks.forEach(peak => {
-                    let matchedMaster = masterPeaksMap.find(m => Math.abs(m.rt - peak.rt) <= tolerance);
-                    if (matchedMaster) {
-                        matchedMaster.rtSum += peak.rt;
-                        matchedMaster.count += 1;
-                        matchedMaster.fileAreas[dataset.name] = peak.area;
-                        if (!matchedMaster.peakName && peak.peakName) {
-                            matchedMaster.peakName = peak.peakName; // Inherit name if available
+                    let candidates = masterPeaksMap.filter(m => 
+                        Math.abs(m.rt - peak.rt) <= tolerance && 
+                        m.fileAreas[dataset.name] === undefined
+                    );
+
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => Math.abs(a.rt - peak.rt) - Math.abs(b.rt - peak.rt));
+                        let bestMaster = candidates[0];
+
+                        bestMaster.fileAreas[dataset.name] = peak.area;
+                        bestMaster.rtSum += peak.rt;
+                        bestMaster.count += 1;
+                        bestMaster.rt = bestMaster.rtSum / bestMaster.count;
+                        if (!bestMaster.peakName && peak.peakName) {
+                            bestMaster.peakName = peak.peakName;
                         }
                     } else {
-                        let newMaster = {
+                        let fileAreas = {};
+                        fileAreas[dataset.name] = peak.area;
+                        masterPeaksMap.push({
                             rt: peak.rt,
                             rtSum: peak.rt,
                             count: 1,
                             peakName: peak.peakName || '',
-                            fileAreas: {}
-                        };
-                        newMaster.fileAreas[dataset.name] = peak.area;
-                        masterPeaksMap.push(newMaster);
+                            fileAreas: fileAreas
+                        });
                     }
                 });
-            });
+            }
 
-            masterPeaksMap.sort((a, b) => (a.rtSum / a.count) - (b.rtSum / b.count));
+            masterPeaksMap.sort((a, b) => a.rt - b.rt);
 
-            let refRt = masterPeaksMap.length > 0 ? masterPeaksMap[0].rtSum / masterPeaksMap[0].count : 1;
+            let refRt = masterPeaksMap.length > 0 ? masterPeaksMap[0].rt : 1;
             let refSelect = document.getElementById('rrt-ref-select').value;
             
             if (refSelect === 'auto' && masterPeaksMap.length > 0) {
@@ -410,7 +437,7 @@
                     let avgArea = Object.values(m.fileAreas).reduce((a,b)=>a+b, 0) / Object.keys(m.fileAreas).length;
                     if (avgArea > maxArea) {
                         maxArea = avgArea;
-                        refRt = m.rtSum / m.count;
+                        refRt = m.rt;
                     }
                 });
             } else if (!isNaN(parseFloat(refSelect))) {
@@ -418,7 +445,7 @@
             }
 
             let unfilteredMatrix = masterPeaksMap.map((m) => {
-                let meanRt = m.rtSum / m.count;
+                let meanRt = m.rt;
                 let rrt = refRt > 0 ? (meanRt / refRt).toFixed(3) : '1.000';
                 
                 let areas = {};
@@ -430,7 +457,7 @@
                         areas[ds.name] = val;
                         hasValidArea = true;
                     } else {
-                        areas[ds.name] = null;
+                        areas[ds.name] = null; // Blank space padding
                     }
                 });
 
@@ -461,7 +488,7 @@
             let currentVal = select.value;
             select.innerHTML = `<option value="auto">Auto-detect Main Peak (Max Area)</option>`;
             masterPeaksMap.forEach((m, idx) => {
-                let avgRt = (m.rtSum / m.count).toFixed(2);
+                let avgRt = m.rt.toFixed(2);
                 let label = m.peakName ? `${m.peakName} (${avgRt} min)` : `t_R = ${avgRt} min`;
                 let opt = document.createElement('option');
                 opt.value = avgRt;
@@ -535,7 +562,7 @@
             renderUI();
         }
 
-        // Export Excel with Unified Peak Name & Color Coding Structure
+        // Export Excel with Union Aligned Structure
         function exportToExcel() {
             if (masterMatrix.length === 0) {
                 alert("No data to export!");
