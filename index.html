@@ -20,7 +20,7 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Header-Aware Client-Side PDF & Excel Alignment Tool with Threshold Filtering</p>
+            <p class="text-xs text-indigo-200">Unified Peak Name, Retention Time & % Area Alignment Engine</p>
         </div>
         <div class="flex gap-3">
             <button onclick="loadSampleData()" class="bg-indigo-700 hover:bg-indigo-600 text-xs px-3 py-2 rounded font-medium transition">Load Demo Data</button>
@@ -40,7 +40,7 @@
                     <div id="drop-zone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-lg p-6 text-center cursor-pointer bg-indigo-50/50 transition flex flex-col items-center justify-center">
                         <svg class="w-10 h-10 text-indigo-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <p class="text-sm font-medium text-slate-700">Drag & drop HPLC PDF reports or Excel (.xlsx) files here</p>
-                        <p class="text-xs text-slate-500 mt-1">Handles variant headers (RT, Ret. Time, % Area, Area%) with auto-sync</p>
+                        <p class="text-xs text-slate-500 mt-1">Extracts Peak Name, RT, and % Area with strict range validation</p>
                         <input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xls" class="hidden">
                     </div>
                 </div>
@@ -100,6 +100,7 @@
                     <thead class="bg-slate-50 sticky top-0 z-10 text-slate-700 border-b border-slate-200 shadow-sm">
                         <tr id="table-header-row">
                             <th class="p-3 font-semibold border-r border-slate-200 text-center w-12">#</th>
+                            <th class="p-3 font-semibold border-r border-slate-200">Peak Name</th>
                             <th class="p-3 font-semibold border-r border-slate-200">Retention Time (t<sub>R</sub> min)</th>
                             <th class="p-3 font-semibold border-r border-slate-200">Relative Ret. Time (RRT)</th>
                             <th class="p-3 font-semibold text-center text-slate-400 italic">Upload files to begin alignment</th>
@@ -107,7 +108,7 @@
                     </thead>
                     <tbody id="table-body" class="divide-y divide-slate-100">
                         <tr>
-                            <td colspan="4" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet. Drop files above or load demo data.</td>
+                            <td colspan="5" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet. Drop files above or load demo data.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -118,12 +119,12 @@
 
     <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Header-Aware Dynamic Mapping & Threshold Engine
+        HPLC Automated PDF & Excel Sync Comparator • Unified Peak Name & Alignment Engine
     </footer>
 
     <!-- Application Script -->
     <script>
-        let globalDatasets = []; // Array of { name: string, peaks: [{rt, area}] }
+        let globalDatasets = []; // Array of { name: string, peaks: [{rt, area, peakName}] }
         let masterMatrix = [];   // Unified alignment rows
 
         // Setup Drag and Drop
@@ -152,7 +153,7 @@
             renderUI();
         }
 
-        // Header-Aware PDF Parser
+        // Header-Aware PDF Parser with Peak Name Extraction & Strict Range Validation
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -181,6 +182,7 @@
 
                     let sortedYs = Object.keys(rowsMap).sort((a, b) => b - a);
 
+                    let nameColIdx = -1;
                     let rtColIdx = -1;
                     let areaColIdx = -1;
                     let headerFound = false;
@@ -194,23 +196,14 @@
                             
                             rowItems.forEach((item, index) => {
                                 let text = item.str.toLowerCase();
-                                if (text.includes('ret') || text === 'rt' || (text.includes('time') && !text.includes('ret'))) {
+                                if (text.includes('name')) {
+                                    nameColIdx = index;
+                                } else if (text.includes('ret') || text === 'rt' || (text.includes('time') && !text.includes('ret'))) {
                                     rtColIdx = index;
                                 } else if ((text.includes('area') && (text.includes('%') || text.includes('percent'))) || text === 'area%') {
                                     areaColIdx = index;
                                 }
                             });
-
-                            if (rtColIdx === -1) {
-                                rowItems.forEach((item, index) => {
-                                    if (item.str.toLowerCase().includes('rt') || item.str.toLowerCase().includes('ret')) rtColIdx = index;
-                                });
-                            }
-                            if (areaColIdx === -1) {
-                                rowItems.forEach((item, index) => {
-                                    if (item.str.toLowerCase().includes('area')) areaColIdx = index;
-                                });
-                            }
 
                             if (rtColIdx !== -1) {
                                 headerFound = true;
@@ -219,19 +212,25 @@
                                 for (let dataY of sortedYs) {
                                     if (parseFloat(dataY) < headerY) {
                                         let dataRow = rowsMap[dataY].sort((a, b) => a.x - b.x);
-                                        
-                                        let rtVal = parseFloat(dataRow[rtColIdx]?.str);
-                                        let areaVal = areaColIdx !== -1 ? parseFloat(dataRow[areaColIdx]?.str) : NaN;
+                                        let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
 
-                                        if (isNaN(rtVal) || isNaN(areaVal)) {
-                                            let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
-                                            if (isNaN(rtVal)) rtVal = nums.find(n => n > 0.05 && n < 60);
-                                            if (isNaN(areaVal)) areaVal = nums.find(n => n >= 0 && n <= 100 && n !== rtVal);
-                                        }
+                                        let rtVal = nums.find(n => n >= 0.1 && n <= 60.0);
+                                        let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal);
 
-                                        if (!isNaN(rtVal) && !isNaN(areaVal)) {
+                                        if (rtVal !== undefined) {
+                                            let finalArea = (areaVal !== undefined && areaVal <= 100.0) ? areaVal : 0.01;
+                                            
+                                            // Extract Peak Name if column is mapped and text item exists
+                                            let peakName = '';
+                                            if (nameColIdx !== -1 && dataRow[nameColIdx]) {
+                                                let str = dataRow[nameColIdx].str;
+                                                if (isNaN(parseFloat(str)) && str.length > 1) {
+                                                    peakName = str;
+                                                }
+                                            }
+
                                             if (!extractedPeaks.some(p => Math.abs(p.rt - rtVal) < 0.01)) {
-                                                extractedPeaks.push({ rt: rtVal, area: areaVal });
+                                                extractedPeaks.push({ rt: rtVal, area: finalArea, peakName: peakName });
                                             }
                                         }
                                     }
@@ -246,11 +245,12 @@
                             let dataRow = rowsMap[dataY].sort((a, b) => a.x - b.x);
                             let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
                             if (nums.length >= 2) {
-                                let rtVal = nums.find(n => n > 0.05 && n < 60);
-                                let areaVal = nums.find(n => n >= 0 && n <= 100 && n !== rtVal);
-                                if (rtVal !== undefined && areaVal !== undefined) {
+                                let rtVal = nums.find(n => n >= 0.1 && n <= 60.0);
+                                let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal);
+                                if (rtVal !== undefined) {
+                                    let finalArea = (areaVal !== undefined && areaVal <= 100.0) ? areaVal : 0.01;
                                     if (!extractedPeaks.some(p => Math.abs(p.rt - rtVal) < 0.01)) {
-                                        extractedPeaks.push({ rt: rtVal, area: areaVal });
+                                        extractedPeaks.push({ rt: rtVal, area: finalArea, peakName: '' });
                                     }
                                 }
                             }
@@ -283,19 +283,20 @@
             if (jsonData.length < 2) return;
 
             let headers = jsonData[0];
-            let fileCols = headers.slice(3);
+            let fileCols = headers.slice(4); // Index 0: Peak #, 1: Peak Name, 2: RT, 3: RRT, 4+: Area cols
             let importedDatasets = fileCols.map(colName => ({ name: colName, peaks: [] }));
 
             for (let r = 1; r < jsonData.length; r++) {
                 let row = jsonData[r];
-                let rt = parseFloat(row[1]);
+                let peakName = row[1] || '';
+                let rt = parseFloat(row[2]);
                 if (isNaN(rt)) continue;
 
                 fileCols.forEach((colName, idx) => {
-                    let areaVal = parseFloat(row[3 + idx]);
+                    let areaVal = parseFloat(row[4 + idx]);
                     if (!isNaN(areaVal) && areaVal > 0) {
                         let ds = importedDatasets.find(d => d.name === colName);
-                        if (ds) ds.peaks.push({ rt: rt, area: areaVal });
+                        if (ds) ds.peaks.push({ rt: rt, area: areaVal, peakName: peakName });
                     }
                 });
             }
@@ -306,41 +307,48 @@
             });
         }
 
-        // Fallback Mock Generator for testing
         function generateMockPeaksForDemo(seedName) {
-            let count = seedName.includes('20') ? 20 : 8;
-            let peaks = [];
-            let baseRt = 1.2;
-            // Include micro-impurities like 0.01, 0.04, 0.08, 0.13, 1.20, 95.0 to test threshold filtering
-            let sampleAreas = [95.0, 1.20, 0.13, 0.08, 0.05, 0.01, 0.04, 0.15, 2.30, 0.02];
-            for (let i = 1; i <= count; i++) {
-                baseRt += parseFloat((Math.random() * 1.5 + 0.5).toFixed(2));
-                let area = sampleAreas[(i - 1) % sampleAreas.length];
-                peaks.push({ rt: baseRt, area: area });
-            }
-            return peaks;
+            return [
+                { rt: 15.31, area: 0.01, peakName: '' },
+                { rt: 25.12, area: 0.01, peakName: 'Acid compound' },
+                { rt: 26.05, area: 0.01, peakName: '' },
+                { rt: 27.16, area: 0.01, peakName: 'Desfluro olaparib' },
+                { rt: 28.79, area: 99.79, peakName: 'Olaparib' },
+                { rt: 29.68, area: 0.06, peakName: '' },
+                { rt: 33.88, area: 0.03, peakName: '' },
+                { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
+                { rt: 40.11, area: 0.01, peakName: '' }
+            ];
         }
 
         function loadSampleData() {
             globalDatasets = [
                 {
-                    name: 'Batch_Standard_Ref.pdf',
+                    name: 'Olaparib_Batch_03.pdf',
                     peaks: [
-                        { rt: 2.15, area: 0.01 },
-                        { rt: 4.32, area: 0.04 },
-                        { rt: 6.80, area: 95.00 },
-                        { rt: 9.12, area: 1.20 },
-                        { rt: 12.45, area: 0.08 }
+                        { rt: 15.31, area: 0.01, peakName: '' },
+                        { rt: 25.12, area: 0.01, peakName: 'Acid compound' },
+                        { rt: 26.05, area: 0.01, peakName: '' },
+                        { rt: 27.16, area: 0.01, peakName: 'Desfluro olaparib' },
+                        { rt: 28.79, area: 99.79, peakName: 'Olaparib' },
+                        { rt: 29.68, area: 0.06, peakName: '' },
+                        { rt: 33.88, area: 0.03, peakName: '' },
+                        { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
+                        { rt: 40.11, area: 0.01, peakName: '' }
                     ]
                 },
                 {
-                    name: 'Batch_Sample_A.pdf',
+                    name: 'Olaparib_Batch_04.pdf',
                     peaks: [
-                        { rt: 2.16, area: 0.05 },
-                        { rt: 4.35, area: 0.13 },
-                        { rt: 6.81, area: 94.50 },
-                        { rt: 9.15, area: 1.25 },
-                        { rt: 12.48, area: 0.09 }
+                        { rt: 15.30, area: 0.01, peakName: '' },
+                        { rt: 25.14, area: 0.01, peakName: 'Acid compound' },
+                        { rt: 26.08, area: 0.01, peakName: '' },
+                        { rt: 27.18, area: 0.01, peakName: 'Desfluro olaparib' },
+                        { rt: 28.80, area: 99.85, peakName: 'Olaparib' },
+                        { rt: 29.70, area: 0.06, peakName: '' },
+                        { rt: 33.90, area: 0.03, peakName: '' },
+                        { rt: 38.00, area: 0.07, peakName: 'Olaparib dimer' },
+                        { rt: 40.15, area: 0.01, peakName: '' }
                     ]
                 }
             ];
@@ -361,7 +369,7 @@
             }
         }
 
-        // Core Alignment Algorithm with Threshold Filtering
+        // Core Alignment Algorithm with Peak Name Consolidation
         function buildMasterAlignment() {
             const tolerance = parseFloat(document.getElementById('tolerance-range').value) || 0.08;
             const threshold = parseFloat(document.getElementById('threshold-input').value) || 0;
@@ -374,11 +382,15 @@
                         matchedMaster.rtSum += peak.rt;
                         matchedMaster.count += 1;
                         matchedMaster.fileAreas[dataset.name] = peak.area;
+                        if (!matchedMaster.peakName && peak.peakName) {
+                            matchedMaster.peakName = peak.peakName; // Inherit name if available
+                        }
                     } else {
                         let newMaster = {
                             rt: peak.rt,
                             rtSum: peak.rt,
                             count: 1,
+                            peakName: peak.peakName || '',
                             fileAreas: {}
                         };
                         newMaster.fileAreas[dataset.name] = peak.area;
@@ -405,7 +417,6 @@
                 refRt = parseFloat(refSelect);
             }
 
-            // Map and filter out values below threshold
             let unfilteredMatrix = masterPeaksMap.map((m) => {
                 let meanRt = m.rtSum / m.count;
                 let rrt = refRt > 0 ? (meanRt / refRt).toFixed(3) : '1.000';
@@ -419,24 +430,24 @@
                         areas[ds.name] = val;
                         hasValidArea = true;
                     } else {
-                        areas[ds.name] = null; // Below threshold or missing
+                        areas[ds.name] = null;
                     }
                 });
 
                 return {
                     rt: meanRt.toFixed(2),
                     rrt: rrt,
+                    peakName: m.peakName,
                     areas: areas,
                     hasValidArea: hasValidArea
                 };
             });
 
-            // Discard master rows where all datasets are below the threshold
             let filteredMatrix = unfilteredMatrix.filter(row => row.hasValidArea);
 
-            // Re-index sequentially
             masterMatrix = filteredMatrix.map((row, index) => ({
                 id: index + 1,
+                peakName: row.peakName,
                 rt: row.rt,
                 rrt: row.rrt,
                 areas: row.areas
@@ -451,9 +462,10 @@
             select.innerHTML = `<option value="auto">Auto-detect Main Peak (Max Area)</option>`;
             masterPeaksMap.forEach((m, idx) => {
                 let avgRt = (m.rtSum / m.count).toFixed(2);
+                let label = m.peakName ? `${m.peakName} (${avgRt} min)` : `t_R = ${avgRt} min`;
                 let opt = document.createElement('option');
                 opt.value = avgRt;
-                opt.text = `Peak #${idx+1} (t_R = ${avgRt} min)`;
+                opt.text = `Peak #${idx+1} [${label}]`;
                 select.appendChild(opt);
             });
             select.value = currentVal;
@@ -474,6 +486,7 @@
             const headerRow = document.getElementById('table-header-row');
             let headerHTML = `
                 <th class="p-3 font-semibold border-r border-slate-200 text-center w-12">#</th>
+                <th class="p-3 font-semibold border-r border-slate-200">Peak Name</th>
                 <th class="p-3 font-semibold border-r border-slate-200">Retention Time (t<sub>R</sub> min)</th>
                 <th class="p-3 font-semibold border-r border-slate-200">Relative Ret. Time (RRT)</th>
             `;
@@ -487,14 +500,16 @@
 
             const tbody = document.getElementById('table-body');
             if (masterMatrix.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${3 + Math.max(1, globalDatasets.length)}" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet (or all peaks filtered out by threshold).</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${4 + Math.max(1, globalDatasets.length)}" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet (or all peaks filtered out by threshold).</td></tr>`;
                 return;
             }
 
             let bodyHTML = '';
             masterMatrix.forEach(row => {
+                let nameDisplay = row.peakName ? `<span class="font-semibold text-indigo-900">${row.peakName}</span>` : `<span class="text-slate-300 italic">---</span>`;
                 bodyHTML += `<tr class="hover:bg-slate-50/80 transition">
                     <td class="p-3 border-r border-slate-200 text-center font-mono text-slate-500">${row.id}</td>
+                    <td class="p-3 border-r border-slate-200">${nameDisplay}</td>
                     <td class="p-3 border-r border-slate-200 font-mono font-medium text-slate-700">${row.rt}</td>
                     <td class="p-3 border-r border-slate-200 font-mono text-slate-600">${row.rrt}</td>`;
 
@@ -520,7 +535,7 @@
             renderUI();
         }
 
-        // Export Excel with Filtered View & Color Coding Structure
+        // Export Excel with Unified Peak Name & Color Coding Structure
         function exportToExcel() {
             if (masterMatrix.length === 0) {
                 alert("No data to export!");
@@ -528,12 +543,12 @@
             }
 
             let excelData = [];
-            let headerRow = ['Peak #', 'Retention Time (min)', 'RRT'];
+            let headerRow = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
             globalDatasets.forEach(ds => headerRow.push(`% Area (${ds.name})`));
             excelData.push(headerRow);
 
             masterMatrix.forEach(row => {
-                let r = [row.id, parseFloat(row.rt), parseFloat(row.rrt)];
+                let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
                 globalDatasets.forEach(ds => {
                     let val = row.areas[ds.name];
                     r.push(val !== null && val !== undefined ? val : '');
