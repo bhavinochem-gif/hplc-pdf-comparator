@@ -160,7 +160,6 @@
             fileInput.value = ''; // Reset input
         }
 
-        // --- NEW BULLETPROOF SPATIAL X-COORDINATE PARSER ---
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -177,7 +176,6 @@
                         y: Math.round(item.transform[5])
                     }));
 
-                    // Group by Y (Rows)
                     let rowsMap = {};
                     items.forEach(item => {
                         let matchedY = Object.keys(rowsMap).find(y => Math.abs(y - item.y) < 4);
@@ -190,7 +188,6 @@
                     let nameX = null, rtX = null, areaX = null;
                     let headerFound = false;
 
-                    // Pass 1: Find the exact physical X-coordinates of the Headers
                     for (let y of sortedYs) {
                         let rowItems = rowsMap[y];
                         let rowJoined = rowItems.map(item => item.str.toLowerCase()).join(' ');
@@ -203,7 +200,6 @@
                                 if (str.includes('area') && str.includes('%')) areaX = item.x;
                             });
 
-                            // Fallback if "Area" and "%" are split into separate PDF text blocks
                             if (areaX === null) {
                                 let pctItem = rowItems.find(it => it.str === '%' || it.str === 'Area%');
                                 if (pctItem) areaX = pctItem.x;
@@ -213,12 +209,10 @@
                                 headerFound = true;
                                 let headerY = parseFloat(y);
                                 
-                                // Pass 2: Extract data by looking *only* under the specific X-coordinates
                                 for (let dataY of sortedYs) {
                                     if (parseFloat(dataY) < headerY) {
                                         let dataRow = rowsMap[dataY];
                                         
-                                        // Find text items directly beneath the header positions (Tolerance ± 30px)
                                         let rtItem = dataRow.find(it => Math.abs(it.x - rtX) < 30);
                                         let areaItem = dataRow.find(it => areaX !== null && Math.abs(it.x - areaX) < 35);
                                         let nameItem = dataRow.find(it => nameX !== null && Math.abs(it.x - nameX) < 40);
@@ -242,13 +236,11 @@
                         }
                     }
 
-                    // Strict Fallback if header keywords completely failed (e.g., weird scan)
                     if (!headerFound) {
                         sortedYs.forEach(dataY => {
                             let dataRow = rowsMap[dataY];
                             let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
-                            // Ensure we skip "1.0, 2.0" Peak # by asserting the array structure
-                            let rtVal = nums.find(n => n >= 0.1 && n <= 150.0 && n.toString().includes('.')); // RT usually has decimals
+                            let rtVal = nums.find(n => n >= 0.1 && n <= 150.0 && n.toString().includes('.'));
                             let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal && n.toString().includes('.'));
                             
                             if (rtVal !== undefined && areaVal !== undefined) {
@@ -275,18 +267,16 @@
             }
         }
 
-        // --- EXCELJS IMPORT ENGINE ---
         async function parseExcelImport(file) {
             const buffer = await file.arrayBuffer();
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(buffer);
             const sheet = workbook.worksheets[0];
             
-            let headerRow = sheet.getRow(1).values; // Note: ExcelJS arrays are 1-indexed (index 1 = Col A)
+            let headerRow = sheet.getRow(1).values; 
             let importedDatasets = [];
-            let dsColMap = {}; // Maps Excel Column Index to Dataset Name
+            let dsColMap = {}; 
             
-            // Loop starting from column E (index 5) where % Areas begin
             for (let i = 5; i < headerRow.length; i++) {
                 if (headerRow[i]) {
                     let dsName = headerRow[i].toString().replace('% Area (', '').replace(')', '').trim();
@@ -296,7 +286,7 @@
             }
 
             sheet.eachRow((row, rowNumber) => {
-                if (rowNumber === 1) return; // Skip Header
+                if (rowNumber === 1) return; 
 
                 let peakName = row.getCell(2).value || '';
                 let rt = parseFloat(row.getCell(3).value);
@@ -571,73 +561,85 @@
             renderUI();
         }
 
-        // --- NEW EXCELJS COLOR-CODED EXPORT ENGINE ---
+        // --- FIXED EXCEL EXPORT (Downloads seamlessly in all browsers) ---
         async function exportToExcel() {
-            if (masterMatrix.length === 0) {
-                alert("No data to export!");
-                return;
-            }
+            try {
+                if (masterMatrix.length === 0) {
+                    alert("No data to export!");
+                    return;
+                }
 
-            const workbook = new ExcelJS.Workbook();
-            const sheet = workbook.addWorksheet('HPLC Comparison');
+                const workbook = new ExcelJS.Workbook();
+                const sheet = workbook.addWorksheet('HPLC Comparison');
 
-            // Format Header Row
-            let headerRow = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
-            globalDatasets.forEach(ds => headerRow.push(`% Area (${ds.name})`));
-            
-            let headerObj = sheet.addRow(headerRow);
-            headerObj.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-            headerObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } }; // Indigo-900 background
-
-            // Auto-width for columns
-            sheet.columns = [
-                { width: 8 }, { width: 25 }, { width: 20 }, { width: 10 }
-            ];
-            globalDatasets.forEach(() => sheet.columns.push({ width: 25 }));
-
-            // Add Data Rows with Color Coding
-            masterMatrix.forEach(row => {
-                let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
+                // Header Row Setup
+                let headerRow = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
+                globalDatasets.forEach(ds => headerRow.push(`% Area (${ds.name})`));
                 
-                globalDatasets.forEach(ds => {
-                    let val = row.areas[ds.name];
-                    r.push(val !== null && val !== undefined ? val : '');
-                });
+                let headerObj = sheet.addRow(headerRow);
+                headerObj.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                headerObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } }; 
 
-                let excelRow = sheet.addRow(r);
+                // Adjust Column Widths
+                sheet.columns = [
+                    { width: 8 }, { width: 25 }, { width: 20 }, { width: 10 }
+                ];
+                globalDatasets.forEach(() => sheet.columns.push({ width: 20 }));
 
-                // Apply Colors to Area Columns
-                globalDatasets.forEach((ds, dsIdx) => {
-                    let val = row.areas[ds.name];
-                    let colIdx = 5 + dsIdx; // A=1, B=2, C=3, D=4, E=5 (First Area Column)
-                    let cell = excelRow.getCell(colIdx);
+                // Data Rows with Colors
+                masterMatrix.forEach(row => {
+                    let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
                     
-                    if (val !== null && val !== undefined) {
-                        let isNew = globalDatasets.length > 1 && dsIdx > 0 && row.areas[globalDatasets[0].name] === null;
-                        if (isNew) {
-                            // Red / Rose Background for Unmatched/Impurity
-                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } };
-                        } else {
-                            // Green / Emerald Background for Matched
-                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
-                        }
-                        cell.numFmt = '0.00"%"';
-                    } else {
-                        // Gray Background for Blank/Missing
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-                        cell.value = '---';
-                        cell.alignment = { horizontal: 'right' };
-                    }
-                });
-            });
+                    globalDatasets.forEach(ds => {
+                        let val = row.areas[ds.name];
+                        r.push(val !== null && val !== undefined ? val : '');
+                    });
 
-            // Trigger Download
-            const buffer = await workbook.xlsx.writeBuffer();
-            const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'HPLC_Peak_Comparison_Report_Color.xlsx';
-            link.click();
+                    let excelRow = sheet.addRow(r);
+
+                    globalDatasets.forEach((ds, dsIdx) => {
+                        let val = row.areas[ds.name];
+                        let colIdx = 5 + dsIdx; // Excel is 1-indexed, E is 5th column
+                        let cell = excelRow.getCell(colIdx);
+                        
+                        if (val !== null && val !== undefined) {
+                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && row.areas[globalDatasets[0].name] === null;
+                            if (isNew) {
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } }; // Rose / New Impurity
+                            } else {
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; // Green / Matched
+                            }
+                            cell.numFmt = '0.00"%"';
+                        } else {
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; // Gray / Missing
+                            cell.value = '---';
+                            cell.alignment = { horizontal: 'right' };
+                        }
+                    });
+                });
+
+                // Generate Buffer
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                
+                // Construct invisible link and attach it to DOM to bypass browser blocks
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'HPLC_Peak_Comparison_Report_Color.xlsx';
+                
+                document.body.appendChild(link); // Required for Chrome/Firefox
+                link.click();
+                
+                // Cleanup after a slight delay
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                }, 150);
+
+            } catch (error) {
+                console.error("Export Error:", error);
+                alert("An error occurred while exporting to Excel. Please check the console.");
+            }
         }
     </script>
 </body>
