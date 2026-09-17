@@ -20,7 +20,7 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Advanced Union Peak Alignment & Blank-Space Auto-Padding Engine</p>
+            <p class="text-xs text-indigo-200">Extended Runtime (Up to 150+ min) & Union Alignment Engine</p>
         </div>
         <div class="flex gap-3">
             <button onclick="loadSampleData()" class="bg-indigo-700 hover:bg-indigo-600 text-xs px-3 py-2 rounded font-medium transition">Load Demo Data</button>
@@ -40,7 +40,7 @@
                     <div id="drop-zone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-lg p-6 text-center cursor-pointer bg-indigo-50/50 transition flex flex-col items-center justify-center">
                         <svg class="w-10 h-10 text-indigo-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <p class="text-sm font-medium text-slate-700">Drag & drop HPLC PDF reports or Excel (.xlsx) files here</p>
-                        <p class="text-xs text-slate-500 mt-1">Automatic union alignment of common and uncommon RT peaks with blank padding</p>
+                        <p class="text-xs text-slate-500 mt-1">Supports methods up to 150+ minutes with manual runtime cutoff selection</p>
                         <input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xls" class="hidden">
                     </div>
                 </div>
@@ -59,9 +59,19 @@
                         <input type="range" id="tolerance-range" min="0.01" max="0.30" step="0.01" value="0.08" class="w-full accent-indigo-600" oninput="document.getElementById('tol-val').innerText=this.value; triggerRealign();">
                     </div>
                     <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Max Method Runtime Cutoff</label>
+                        <select id="max-runtime-select" class="w-full text-xs border border-slate-300 rounded p-2 bg-white font-medium" onchange="triggerRealign()">
+                            <option value="60">60 Minutes</option>
+                            <option value="75">75 Minutes</option>
+                            <option value="90">90 Minutes</option>
+                            <option value="120" selected>120 Minutes</option>
+                            <option value="150">150 Minutes</option>
+                        </select>
+                        <p class="text-[10px] text-slate-400 mt-1">Fetches peaks only up to selected runtime</p>
+                    </div>
+                    <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Reporting Threshold (% Area Cutoff)</label>
                         <input type="number" id="threshold-input" min="0" max="100" step="0.01" value="0.00" class="w-full text-xs border border-slate-300 rounded p-2 bg-white font-mono font-bold text-indigo-600" oninput="triggerRealign()" placeholder="e.g. 0.05 or 0.10">
-                        <p class="text-[10px] text-slate-400 mt-1">Hides peaks / cells below this % area value</p>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Reference Peak for RRT</label>
@@ -119,7 +129,7 @@
 
     <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Union Alignment & Blank-Padding Engine
+        HPLC Automated PDF & Excel Sync Comparator • Extended Runtime & Union Alignment Engine
     </footer>
 
     <!-- Application Script -->
@@ -153,7 +163,7 @@
             renderUI();
         }
 
-        // Header-Aware PDF Parser with Strict Range Validation
+        // Header-Aware PDF Parser supporting high runtime methods (up to 150 min)
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -214,7 +224,8 @@
                                         let dataRow = rowsMap[dataY].sort((a, b) => a.x - b.x);
                                         let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
 
-                                        let rtVal = nums.find(n => n >= 0.1 && n <= 60.0);
+                                        // Allow retention time up to 150 minutes during extraction
+                                        let rtVal = nums.find(n => n >= 0.1 && n <= 150.0);
                                         let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal);
 
                                         if (rtVal !== undefined) {
@@ -244,7 +255,7 @@
                             let dataRow = rowsMap[dataY].sort((a, b) => a.x - b.x);
                             let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
                             if (nums.length >= 2) {
-                                let rtVal = nums.find(n => n >= 0.1 && n <= 60.0);
+                                let rtVal = nums.find(n => n >= 0.1 && n <= 150.0);
                                 let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal);
                                 if (rtVal !== undefined) {
                                     let finalArea = (areaVal !== undefined && areaVal <= 100.0) ? areaVal : 0.01;
@@ -282,7 +293,7 @@
             if (jsonData.length < 2) return;
 
             let headers = jsonData[0];
-            let fileCols = headers.slice(4); // Index 0: Peak #, 1: Peak Name, 2: RT, 3: RRT, 4+: Area cols
+            let fileCols = headers.slice(4); 
             let importedDatasets = fileCols.map(colName => ({ name: colName, peaks: [] }));
 
             for (let r = 1; r < jsonData.length; r++) {
@@ -335,7 +346,8 @@
                         { rt: 33.89, area: 0.03, peakName: '' },
                         { rt: 34.41, area: 0.04, peakName: '' },
                         { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
-                        { rt: 40.11, area: 0.01, peakName: '' }
+                        { rt: 40.11, area: 0.01, peakName: '' },
+                        { rt: 78.50, area: 0.05, peakName: 'Late_Impurity_75min' } // Testing high runtime
                     ]
                 },
                 {
@@ -347,7 +359,8 @@
                         { rt: 29.68, area: 0.06, peakName: '' },
                         { rt: 33.88, area: 0.03, peakName: '' },
                         { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
-                        { rt: 40.12, area: 0.01, peakName: '' }
+                        { rt: 40.12, area: 0.01, peakName: '' },
+                        { rt: 78.55, area: 0.03, peakName: 'Late_Impurity_75min' } // Testing high runtime
                     ]
                 }
             ];
@@ -368,10 +381,11 @@
             }
         }
 
-        // Robust Union Master Alignment Engine (Prevents Overwrites & Auto-Padding)
+        // Core Alignment Engine with Max Runtime & Threshold Filters
         function buildMasterAlignment() {
             const tolerance = parseFloat(document.getElementById('tolerance-range').value) || 0.08;
             const threshold = parseFloat(document.getElementById('threshold-input').value) || 0;
+            const maxRuntime = parseFloat(document.getElementById('max-runtime-select').value) || 120.0;
             let masterPeaksMap = [];
 
             if (globalDatasets.length === 0) {
@@ -379,22 +393,30 @@
                 return;
             }
 
-            // Initialize master list with dataset 1
-            globalDatasets[0].peaks.forEach(peak => {
-                let fileAreas = {};
-                fileAreas[globalDatasets[0].name] = peak.area;
-                masterPeaksMap.push({
-                    rt: peak.rt,
-                    rtSum: peak.rt,
-                    count: 1,
-                    peakName: peak.peakName || '',
-                    fileAreas: fileAreas
-                });
-            });
+            // Filter dataset peaks by selected max runtime cutoff
+            let filteredDatasets = globalDatasets.map(ds => ({
+                name: ds.name,
+                peaks: ds.peaks.filter(p => p.rt <= maxRuntime)
+            }));
 
-            // Sequentially merge subsequent datasets without overwriting
-            for (let i = 1; i < globalDatasets.length; i++) {
-                let dataset = globalDatasets[i];
+            // Initialize master list with dataset 1 (within runtime limit)
+            if (filteredDatasets[0].peaks.length > 0) {
+                filteredDatasets[0].peaks.forEach(peak => {
+                    let fileAreas = {};
+                    fileAreas[filteredDatasets[0].name] = peak.area;
+                    masterPeaksMap.push({
+                        rt: peak.rt,
+                        rtSum: peak.rt,
+                        count: 1,
+                        peakName: peak.peakName || '',
+                        fileAreas: fileAreas
+                    });
+                });
+            }
+
+            // Sequentially merge subsequent datasets
+            for (let i = 1; i < filteredDatasets.length; i++) {
+                let dataset = filteredDatasets[i];
                 dataset.peaks.forEach(peak => {
                     let candidates = masterPeaksMap.filter(m => 
                         Math.abs(m.rt - peak.rt) <= tolerance && 
@@ -457,7 +479,7 @@
                         areas[ds.name] = val;
                         hasValidArea = true;
                     } else {
-                        areas[ds.name] = null; // Blank space padding
+                        areas[ds.name] = null;
                     }
                 });
 
@@ -527,7 +549,7 @@
 
             const tbody = document.getElementById('table-body');
             if (masterMatrix.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${4 + Math.max(1, globalDatasets.length)}" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet (or all peaks filtered out by threshold).</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${4 + Math.max(1, globalDatasets.length)}" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet (or all peaks filtered out by runtime/threshold).</td></tr>`;
                 return;
             }
 
@@ -562,7 +584,7 @@
             renderUI();
         }
 
-        // Export Excel with Union Aligned Structure
+        // Export Excel with Runtime Filtered Structure
         function exportToExcel() {
             if (masterMatrix.length === 0) {
                 alert("No data to export!");
