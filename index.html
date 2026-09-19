@@ -20,11 +20,10 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Spatial X-Coordinate Parsing Engine with Color-Coded Excel Export</p>
+            <p class="text-xs text-indigo-200">Dual RT/RRT Alignment Engine with Multi-Directional Export</p>
         </div>
         <div class="flex gap-3">
-            <button onclick="loadSampleData()" class="bg-indigo-700 hover:bg-indigo-600 text-xs px-3 py-2 rounded font-medium transition">Load Demo Data</button>
-            <button onclick="resetAll()" class="bg-rose-700 hover:bg-rose-600 text-xs px-3 py-2 rounded font-medium transition">Reset All</button>
+            <button onclick="resetAll()" class="bg-rose-700 hover:bg-rose-600 text-xs px-3 py-2 rounded font-medium transition">Reset / Clear All Data</button>
         </div>
     </header>
 
@@ -53,14 +52,18 @@
             <!-- Settings Panel -->
             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
                 <div class="space-y-4">
-                    <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wider">Alignment & Filters</h2>
+                    <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-2">Alignment & Filters</h2>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Retention Time Tolerance (&Delta;t<sub>R</sub>): <span id="tol-val" class="font-bold text-indigo-600">0.08</span> min</label>
-                        <input type="range" id="tolerance-range" min="0.01" max="0.30" step="0.01" value="0.08" class="w-full accent-indigo-600" oninput="document.getElementById('tol-val').innerText=this.value; triggerRealign();">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Retention Time Tol. (&Delta;t<sub>R</sub>): <span id="rt-tol-val" class="font-bold text-indigo-600">0.10</span> min</label>
+                        <input type="range" id="rt-tolerance-range" min="0.00" max="1.00" step="0.05" value="0.10" class="w-full accent-indigo-600" oninput="document.getElementById('rt-tol-val').innerText=this.value; triggerRealign();">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Relative Ret. Time Tol. (&Delta;RRT): <span id="rrt-tol-val" class="font-bold text-indigo-600">0.05</span></label>
+                        <input type="range" id="rrt-tolerance-range" min="0.00" max="0.20" step="0.01" value="0.05" class="w-full accent-indigo-600" oninput="document.getElementById('rrt-tol-val').innerText=this.value; triggerRealign();">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Max Method Runtime Cutoff</label>
-                        <select id="max-runtime-select" class="w-full text-xs border border-slate-300 rounded p-2 bg-white font-medium" onchange="triggerRealign()">
+                        <select id="max-runtime-select" class="w-full text-xs border border-slate-300 rounded p-1 bg-white font-medium" onchange="triggerRealign()">
                             <option value="60">60 Minutes</option>
                             <option value="75">75 Minutes</option>
                             <option value="90">90 Minutes</option>
@@ -69,20 +72,20 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Reporting Threshold (% Area Cutoff)</label>
-                        <input type="number" id="threshold-input" min="0" max="100" step="0.01" value="0.00" class="w-full text-xs border border-slate-300 rounded p-2 bg-white font-mono font-bold text-indigo-600" oninput="triggerRealign()" placeholder="e.g. 0.05 or 0.10">
-                    </div>
-                    <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Reference Peak for RRT</label>
-                        <select id="rrt-ref-select" class="w-full text-xs border border-slate-300 rounded p-2 bg-white" onchange="triggerRealign()">
+                        <select id="rrt-ref-select" class="w-full text-xs border border-slate-300 rounded p-1 bg-white" onchange="triggerRealign()">
                             <option value="auto">Auto-detect Main Peak (Max Area)</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Reporting Threshold (% Area Cutoff)</label>
+                        <input type="number" id="threshold-input" min="0" max="100" step="0.01" value="0.00" class="w-full text-xs border border-slate-300 rounded p-1 bg-white font-mono font-bold text-indigo-600" oninput="triggerRealign()" placeholder="e.g. 0.05 or 0.10">
                     </div>
                 </div>
                 <div class="mt-6">
                     <button onclick="exportToExcel()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-4 rounded shadow transition flex items-center justify-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        Export Color Excel Report
+                        Export Color Excel (Vert & Horiz)
                     </button>
                 </div>
             </div>
@@ -117,7 +120,7 @@
                     </thead>
                     <tbody id="table-body" class="divide-y divide-slate-100">
                         <tr>
-                            <td colspan="5" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet. Drop files above or load demo data.</td>
+                            <td colspan="5" class="p-12 text-center text-slate-400">No HPLC reports uploaded yet.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -127,7 +130,7 @@
     </main>
 
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Spatial Parsing & Color-Export Engine
+        HPLC Automated PDF & Excel Sync Comparator • Spatial Parsing & Dual-Export Engine
     </footer>
 
     <script>
@@ -253,7 +256,8 @@
                 }
 
                 if (extractedPeaks.length === 0) {
-                    extractedPeaks = generateMockPeaksForDemo(file.name);
+                    alert(`No valid HPLC peaks found in PDF: ${file.name}`);
+                    return;
                 }
 
                 extractedPeaks.sort((a, b) => a.rt - b.rt);
@@ -271,8 +275,9 @@
             const buffer = await file.arrayBuffer();
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(buffer);
-            const sheet = workbook.worksheets[0];
             
+            // Note: Only imports from Sheet2 (Horizontal Sheet layout) natively if re-uploading
+            const sheet = workbook.worksheets.find(w => w.name === 'Horizontal View') || workbook.worksheets[0];
             let headerRow = sheet.getRow(1).values; 
             let importedDatasets = [];
             let dsColMap = {}; 
@@ -308,52 +313,6 @@
             });
         }
 
-        function generateMockPeaksForDemo(seedName) {
-            return [
-                { rt: 25.12, area: 0.01, peakName: 'Acid compound' },
-                { rt: 27.16, area: 0.01, peakName: 'Desfluro olaparib' },
-                { rt: 28.79, area: 99.79, peakName: 'Olaparib' },
-                { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' }
-            ];
-        }
-
-        function loadSampleData() {
-            globalDatasets = [
-                {
-                    name: 'Olaparib_Batch_03.pdf',
-                    peaks: [
-                        { rt: 15.31, area: 0.01, peakName: '' },
-                        { rt: 25.12, area: 0.01, peakName: 'Acid compound' },
-                        { rt: 26.05, area: 0.01, peakName: '' },
-                        { rt: 27.16, area: 0.01, peakName: 'Desfluro olaparib' },
-                        { rt: 28.79, area: 99.79, peakName: 'Olaparib' },
-                        { rt: 29.62, area: 0.06, peakName: '' },
-                        { rt: 33.32, area: 0.02, peakName: '' },
-                        { rt: 33.89, area: 0.03, peakName: '' },
-                        { rt: 34.41, area: 0.04, peakName: '' },
-                        { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
-                        { rt: 40.11, area: 0.01, peakName: '' },
-                        { rt: 78.50, area: 0.05, peakName: 'Late_Impurity_75min' } 
-                    ]
-                },
-                {
-                    name: 'Olaparib_Batch_04.pdf',
-                    peaks: [
-                        { rt: 25.14, area: 0.01, peakName: 'Acid compound' },
-                        { rt: 27.17, area: 0.01, peakName: 'Desfluro olaparib' },
-                        { rt: 28.80, area: 99.85, peakName: 'Olaparib' },
-                        { rt: 29.68, area: 0.06, peakName: '' },
-                        { rt: 33.88, area: 0.03, peakName: '' },
-                        { rt: 37.99, area: 0.07, peakName: 'Olaparib dimer' },
-                        { rt: 40.12, area: 0.01, peakName: '' },
-                        { rt: 78.55, area: 0.03, peakName: 'Late_Impurity_75min' } 
-                    ]
-                }
-            ];
-            buildMasterAlignment();
-            renderUI();
-        }
-
         function resetAll() {
             globalDatasets = [];
             masterMatrix = [];
@@ -367,8 +326,10 @@
             }
         }
 
+        // Deep Dual-Tolerance Alignment Engine
         function buildMasterAlignment() {
-            const tolerance = parseFloat(document.getElementById('tolerance-range').value) || 0.08;
+            const rtTolerance = parseFloat(document.getElementById('rt-tolerance-range').value) || 0.10;
+            const rrtTolerance = parseFloat(document.getElementById('rrt-tolerance-range').value) || 0.05;
             const threshold = parseFloat(document.getElementById('threshold-input').value) || 0;
             const maxRuntime = parseFloat(document.getElementById('max-runtime-select').value) || 120.0;
             let masterPeaksMap = [];
@@ -383,36 +344,65 @@
                 peaks: ds.peaks.filter(p => p.rt <= maxRuntime)
             }));
 
-            if (filteredDatasets[0].peaks.length > 0) {
-                filteredDatasets[0].peaks.forEach(peak => {
-                    let fileAreas = {};
-                    fileAreas[filteredDatasets[0].name] = peak.area;
-                    masterPeaksMap.push({
-                        rt: peak.rt,
-                        rtSum: peak.rt,
-                        count: 1,
-                        peakName: peak.peakName || '',
-                        fileAreas: fileAreas
-                    });
-                });
+            let refSelect = document.getElementById('rrt-ref-select').value;
+            filteredDatasets.forEach(ds => {
+                if (ds.peaks.length === 0) return;
+                let refPeak = null;
+                
+                if (refSelect === 'auto' || isNaN(parseFloat(refSelect))) {
+                    refPeak = ds.peaks.reduce((prev, curr) => (prev.area > curr.area) ? prev : curr, ds.peaks[0]);
+                } else {
+                    let targetRt = parseFloat(refSelect);
+                    refPeak = ds.peaks.reduce((prev, curr) => Math.abs(curr.rt - targetRt) < Math.abs(prev.rt - targetRt) ? curr : prev, ds.peaks[0]);
+                }
+                
+                let localRefRt = refPeak ? refPeak.rt : 1;
+                ds.peaks.forEach(p => p.rrt = p.rt / localRefRt);
+            });
+
+            let firstDsIndex = filteredDatasets.findIndex(ds => ds.peaks.length > 0);
+            if (firstDsIndex === -1) {
+                masterMatrix = [];
+                return;
             }
 
-            for (let i = 1; i < filteredDatasets.length; i++) {
+            filteredDatasets[firstDsIndex].peaks.forEach(peak => {
+                let fileAreas = {};
+                fileAreas[filteredDatasets[firstDsIndex].name] = peak.area;
+                masterPeaksMap.push({
+                    rt: peak.rt,
+                    rtSum: peak.rt,
+                    rrtSum: peak.rrt,
+                    count: 1,
+                    peakName: peak.peakName || '',
+                    fileAreas: fileAreas,
+                    rrt: peak.rrt
+                });
+            });
+
+            for (let i = firstDsIndex + 1; i < filteredDatasets.length; i++) {
                 let dataset = filteredDatasets[i];
                 dataset.peaks.forEach(peak => {
                     let candidates = masterPeaksMap.filter(m => 
-                        Math.abs(m.rt - peak.rt) <= tolerance && 
+                        (Math.abs(m.rt - peak.rt) <= rtTolerance || Math.abs(m.rrt - peak.rrt) <= rrtTolerance) && 
                         m.fileAreas[dataset.name] === undefined
                     );
 
                     if (candidates.length > 0) {
-                        candidates.sort((a, b) => Math.abs(a.rt - peak.rt) - Math.abs(b.rt - peak.rt));
+                        candidates.sort((a, b) => {
+                            let distA = Math.min(Math.abs(a.rt - peak.rt)/rtTolerance, Math.abs(a.rrt - peak.rrt)/rrtTolerance);
+                            let distB = Math.min(Math.abs(b.rt - peak.rt)/rtTolerance, Math.abs(b.rrt - peak.rrt)/rrtTolerance);
+                            return distA - distB;
+                        });
                         let bestMaster = candidates[0];
 
                         bestMaster.fileAreas[dataset.name] = peak.area;
                         bestMaster.rtSum += peak.rt;
+                        bestMaster.rrtSum += peak.rrt;
                         bestMaster.count += 1;
                         bestMaster.rt = bestMaster.rtSum / bestMaster.count;
+                        bestMaster.rrt = bestMaster.rrtSum / bestMaster.count;
+                        
                         if (!bestMaster.peakName && peak.peakName) {
                             bestMaster.peakName = peak.peakName;
                         }
@@ -422,9 +412,11 @@
                         masterPeaksMap.push({
                             rt: peak.rt,
                             rtSum: peak.rt,
+                            rrtSum: peak.rrt,
                             count: 1,
                             peakName: peak.peakName || '',
-                            fileAreas: fileAreas
+                            fileAreas: fileAreas,
+                            rrt: peak.rrt
                         });
                     }
                 });
@@ -432,25 +424,7 @@
 
             masterPeaksMap.sort((a, b) => a.rt - b.rt);
 
-            let refRt = masterPeaksMap.length > 0 ? masterPeaksMap[0].rt : 1;
-            let refSelect = document.getElementById('rrt-ref-select').value;
-            
-            if (refSelect === 'auto' && masterPeaksMap.length > 0) {
-                let maxArea = -1;
-                masterPeaksMap.forEach(m => {
-                    let avgArea = Object.values(m.fileAreas).reduce((a,b)=>a+b, 0) / Object.keys(m.fileAreas).length;
-                    if (avgArea > maxArea) {
-                        maxArea = avgArea;
-                        refRt = m.rt;
-                    }
-                });
-            } else if (!isNaN(parseFloat(refSelect))) {
-                refRt = parseFloat(refSelect);
-            }
-
             let unfilteredMatrix = masterPeaksMap.map((m) => {
-                let rrt = refRt > 0 ? (m.rt / refRt).toFixed(3) : '1.000';
-                
                 let areas = {};
                 let hasValidArea = false;
                 
@@ -466,7 +440,7 @@
 
                 return {
                     rt: m.rt.toFixed(2),
-                    rrt: rrt,
+                    rrt: m.rrt.toFixed(3),
                     peakName: m.peakName,
                     areas: areas,
                     hasValidArea: hasValidArea
@@ -561,7 +535,6 @@
             renderUI();
         }
 
-        // --- SAFELY CONFIGURED EXCEL EXPORT (Color-coded and error-checked) ---
         async function exportToExcel() {
             try {
                 if (masterMatrix.length === 0) {
@@ -570,60 +543,113 @@
                 }
 
                 const workbook = new ExcelJS.Workbook();
-                const sheet = workbook.addWorksheet('HPLC Comparison');
-
-                // 1. Configure columns safely before adding rows
-                let columnsConfig = [
-                    { width: 8 }, { width: 25 }, { width: 20 }, { width: 10 }
-                ];
-                globalDatasets.forEach(() => columnsConfig.push({ width: 20 }));
-                sheet.columns = columnsConfig;
-
-                // 2. Add Header Row
-                let headerRow = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
-                globalDatasets.forEach(ds => headerRow.push(`% Area (${ds.name})`));
                 
-                let headerObj = sheet.addRow(headerRow);
+                // ============================================
+                // SHEET 1: VERTICAL VIEW (Transposed Layout)
+                // ============================================
+                const sheet1 = workbook.addWorksheet('Vertical View');
+
+                let columnsConfig1 = [{ width: 35 }]; 
+                masterMatrix.forEach(() => columnsConfig1.push({ width: 18 }));
+                sheet1.columns = columnsConfig1;
+
+                let headerRow1 = ['File Name'];
+                masterMatrix.forEach(m => {
+                    let headerLabel = m.peakName ? `${m.peakName}\n(RT: ${m.rt})` : `RT: ${m.rt}\nRRT: ${m.rrt}`;
+                    headerRow1.push(headerLabel);
+                });
                 
-                // Style headers cell-by-cell (prevents browser crash)
-                headerObj.eachCell((cell) => {
+                let headerObj1 = sheet1.addRow(headerRow1);
+                headerObj1.height = 35; 
+                headerObj1.eachCell((cell) => {
                     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+                    cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
                 });
 
-                // 3. Add Data Rows
-                masterMatrix.forEach(row => {
-                    let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
-                    
-                    globalDatasets.forEach(ds => {
-                        let val = row.areas[ds.name];
+                globalDatasets.forEach((ds, dsIdx) => {
+                    let r = [ds.name];
+                    masterMatrix.forEach(m => {
+                        let val = m.areas[ds.name];
                         r.push(val !== null && val !== undefined ? val : '');
                     });
 
-                    let excelRow = sheet.addRow(r);
+                    let excelRow = sheet1.addRow(r);
 
-                    globalDatasets.forEach((ds, dsIdx) => {
-                        let val = row.areas[ds.name];
-                        let colIdx = 5 + dsIdx; // Index 5 corresponds to column E (first area col)
+                    masterMatrix.forEach((m, mIdx) => {
+                        let val = m.areas[ds.name];
+                        let colIdx = mIdx + 2; 
                         let cell = excelRow.getCell(colIdx);
                         
                         if (val !== null && val !== undefined) {
-                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && row.areas[globalDatasets[0].name] === null;
+                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && m.areas[globalDatasets[0].name] === null;
                             if (isNew) {
-                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } }; // Rose / Impurity
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } }; 
                             } else {
-                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; // Emerald / Matched
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; 
                             }
                             cell.numFmt = '0.00"%"';
                         } else {
-                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; // Slate / Missing
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; 
                             cell.value = '---';
                             cell.alignment = { horizontal: 'right' };
                         }
                     });
                 });
 
-                // 4. Trigger Download
+                // ============================================
+                // SHEET 2: HORIZONTAL VIEW (Standard Table)
+                // ============================================
+                const sheet2 = workbook.addWorksheet('Horizontal View');
+
+                let columnsConfig2 = [
+                    { width: 8 }, { width: 25 }, { width: 20 }, { width: 10 }
+                ];
+                globalDatasets.forEach(() => columnsConfig2.push({ width: 20 }));
+                sheet2.columns = columnsConfig2;
+
+                let headerRow2 = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
+                globalDatasets.forEach(ds => headerRow2.push(`% Area (${ds.name})`));
+                
+                let headerObj2 = sheet2.addRow(headerRow2);
+                headerObj2.eachCell((cell) => {
+                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+                });
+
+                masterMatrix.forEach(row => {
+                    let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
+                    globalDatasets.forEach(ds => {
+                        let val = row.areas[ds.name];
+                        r.push(val !== null && val !== undefined ? val : '');
+                    });
+
+                    let excelRow = sheet2.addRow(r);
+
+                    globalDatasets.forEach((ds, dsIdx) => {
+                        let val = row.areas[ds.name];
+                        let colIdx = 5 + dsIdx; 
+                        let cell = excelRow.getCell(colIdx);
+                        
+                        if (val !== null && val !== undefined) {
+                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && row.areas[globalDatasets[0].name] === null;
+                            if (isNew) {
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } }; 
+                            } else {
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; 
+                            }
+                            cell.numFmt = '0.00"%"';
+                        } else {
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; 
+                            cell.value = '---';
+                            cell.alignment = { horizontal: 'right' };
+                        }
+                    });
+                });
+
+                // ============================================
+                // EXPORT TRIGGER
+                // ============================================
                 const buffer = await workbook.xlsx.writeBuffer();
                 const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
                 
@@ -631,11 +657,9 @@
                 link.href = URL.createObjectURL(blob);
                 link.download = 'HPLC_Peak_Comparison_Report_Color.xlsx';
                 
-                // Temporarily attach to body so older browsers allow the click
                 document.body.appendChild(link);
                 link.click();
                 
-                // Cleanup
                 setTimeout(() => {
                     document.body.removeChild(link);
                     URL.revokeObjectURL(link.href);
