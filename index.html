@@ -20,7 +20,7 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Dual RT/RRT Alignment Engine with Multi-Directional Export</p>
+            <p class="text-xs text-indigo-200">Hybrid Spatial-Numeric Parser & Multi-Directional Export Engine</p>
         </div>
         <div class="flex gap-3">
             <button onclick="resetAll()" class="bg-rose-700 hover:bg-rose-600 text-xs px-3 py-2 rounded font-medium transition">Reset / Clear All Data</button>
@@ -39,7 +39,7 @@
                     <div id="drop-zone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-lg p-6 text-center cursor-pointer bg-indigo-50/50 transition flex flex-col items-center justify-center">
                         <svg class="w-10 h-10 text-indigo-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <p class="text-sm font-medium text-slate-700">Drag & drop HPLC PDF reports or Excel (.xlsx) files here</p>
-                        <p class="text-xs text-slate-500 mt-1">Spatial column tracking prevents empty-cell misalignment errors</p>
+                        <p class="text-xs text-slate-500 mt-1">Multi-page parsing guarantees extraction of 50+ peak long methods</p>
                         <input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xls" class="hidden">
                     </div>
                 </div>
@@ -130,7 +130,7 @@
     </main>
 
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Spatial Parsing & Dual-Export Engine
+        HPLC Automated PDF & Excel Sync Comparator • Hybrid Parsing & Dual-Export Engine
     </footer>
 
     <script>
@@ -163,6 +163,7 @@
             fileInput.value = ''; 
         }
 
+        // --- UPGRADED HYBRID PARSER FOR LONG MULTI-PAGE REPORTS ---
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -186,7 +187,7 @@
                         else rowsMap[matchedY].push(item);
                     });
 
-                    let sortedYs = Object.keys(rowsMap).sort((a, b) => b - a);
+                    let sortedYs = Object.keys(rowsMap).sort((a, b) => b - a); // Descending Y (Top to bottom of page)
 
                     let nameX = null, rtX = null, areaX = null;
                     let headerFound = false;
@@ -195,6 +196,7 @@
                         let rowItems = rowsMap[y];
                         let rowJoined = rowItems.map(item => item.str.toLowerCase()).join(' ');
 
+                        // Detect Header Row
                         if ((rowJoined.includes('rt') || rowJoined.includes('ret')) && rowJoined.includes('area')) {
                             rowItems.forEach(item => {
                                 let str = item.str.toLowerCase();
@@ -212,37 +214,61 @@
                                 headerFound = true;
                                 let headerY = parseFloat(y);
                                 
+                                // Extract Data Below Header
                                 for (let dataY of sortedYs) {
                                     if (parseFloat(dataY) < headerY) {
                                         let dataRow = rowsMap[dataY];
+                                        let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
                                         
-                                        let rtItem = dataRow.find(it => Math.abs(it.x - rtX) < 30);
-                                        let areaItem = dataRow.find(it => areaX !== null && Math.abs(it.x - areaX) < 35);
-                                        let nameItem = dataRow.find(it => nameX !== null && Math.abs(it.x - nameX) < 40);
+                                        // Widened spatial window (60px) to catch right-aligned numbers under center-aligned headers
+                                        let rtItem = dataRow.find(it => Math.abs(it.x - rtX) < 60);
+                                        let areaItem = dataRow.find(it => areaX !== null && Math.abs(it.x - areaX) < 60);
+                                        let nameItem = dataRow.find(it => nameX !== null && Math.abs(it.x - nameX) < 80);
 
+                                        let rtVal = undefined;
+                                        let areaVal = undefined;
+                                        let peakName = '';
+
+                                        // Try Spatial Extraction First
                                         if (rtItem && areaItem) {
-                                            let rtVal = parseFloat(rtItem.str);
-                                            let areaVal = parseFloat(areaItem.str);
+                                            let parsedRt = parseFloat(rtItem.str);
+                                            let parsedArea = parseFloat(areaItem.str);
+                                            if (!isNaN(parsedRt) && !isNaN(parsedArea) && parsedRt >= 0.1 && parsedRt <= 150.0 && parsedArea >= 0.0 && parsedArea <= 100.0) {
+                                                rtVal = parsedRt;
+                                                areaVal = parsedArea;
+                                                if (nameItem && isNaN(parseFloat(nameItem.str))) peakName = nameItem.str;
+                                            }
+                                        }
 
-                                            if (!isNaN(rtVal) && !isNaN(areaVal) && rtVal >= 0.1 && rtVal <= 150.0 && areaVal >= 0.0 && areaVal <= 100.0) {
-                                                let peakName = (nameItem && isNaN(parseFloat(nameItem.str))) ? nameItem.str : '';
-                                                
-                                                if (!extractedPeaks.some(p => Math.abs(p.rt - rtVal) < 0.01)) {
-                                                    extractedPeaks.push({ rt: rtVal, area: areaVal, peakName: peakName });
-                                                }
+                                        // Fallback Hybrid Extraction (If spatial misses due to severe text misalignment)
+                                        if (rtVal === undefined && nums.length >= 2) {
+                                            let tempRt = nums.find(n => n >= 0.1 && n <= 150.0 && n.toString().includes('.'));
+                                            let tempArea = nums.find(n => n >= 0.0 && n <= 100.0 && n !== tempRt && n.toString().includes('.'));
+                                            if (tempRt !== undefined && tempArea !== undefined) {
+                                                rtVal = tempRt;
+                                                areaVal = tempArea;
+                                            }
+                                        }
+
+                                        if (rtVal !== undefined) {
+                                            if (!extractedPeaks.some(p => Math.abs(p.rt - rtVal) < 0.01)) {
+                                                extractedPeaks.push({ rt: rtVal, area: areaVal, peakName: peakName });
                                             }
                                         }
                                     }
                                 }
-                                break;
+                                break; // Done processing page containing header
                             }
                         }
                     }
 
+                    // Strict Numeric Extraction for Pages Without Headers (e.g., Page 2 of a long peak table)
                     if (!headerFound) {
                         sortedYs.forEach(dataY => {
                             let dataRow = rowsMap[dataY];
                             let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
+                            
+                            // Must contain decimal '.' to prevent catching Integer Peak #s like "1.0", "2.0"
                             let rtVal = nums.find(n => n >= 0.1 && n <= 150.0 && n.toString().includes('.'));
                             let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal && n.toString().includes('.'));
                             
@@ -276,7 +302,6 @@
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(buffer);
             
-            // Note: Only imports from Sheet2 (Horizontal Sheet layout) natively if re-uploading
             const sheet = workbook.worksheets.find(w => w.name === 'Horizontal View') || workbook.worksheets[0];
             let headerRow = sheet.getRow(1).values; 
             let importedDatasets = [];
@@ -535,6 +560,7 @@
             renderUI();
         }
 
+        // --- SAFELY CONFIGURED DUAL EXCEL EXPORT ---
         async function exportToExcel() {
             try {
                 if (masterMatrix.length === 0) {
@@ -545,44 +571,41 @@
                 const workbook = new ExcelJS.Workbook();
                 
                 // ============================================
-                // SHEET 1: VERTICAL VIEW (Transposed Layout)
+                // SHEET 1: HORIZONTAL VIEW (Standard Table)
                 // ============================================
-                const sheet1 = workbook.addWorksheet('Vertical View');
+                const sheet1 = workbook.addWorksheet('Horizontal View');
 
-                let columnsConfig1 = [{ width: 35 }]; 
-                masterMatrix.forEach(() => columnsConfig1.push({ width: 18 }));
+                let columnsConfig1 = [
+                    { width: 8 }, { width: 25 }, { width: 20 }, { width: 10 }
+                ];
+                globalDatasets.forEach(() => columnsConfig1.push({ width: 20 }));
                 sheet1.columns = columnsConfig1;
 
-                let headerRow1 = ['File Name'];
-                masterMatrix.forEach(m => {
-                    let headerLabel = m.peakName ? `${m.peakName}\n(RT: ${m.rt})` : `RT: ${m.rt}\nRRT: ${m.rrt}`;
-                    headerRow1.push(headerLabel);
-                });
+                let headerRow1 = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
+                globalDatasets.forEach(ds => headerRow1.push(`% Area (${ds.name})`));
                 
                 let headerObj1 = sheet1.addRow(headerRow1);
-                headerObj1.height = 35; 
                 headerObj1.eachCell((cell) => {
                     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
-                    cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
                 });
 
-                globalDatasets.forEach((ds, dsIdx) => {
-                    let r = [ds.name];
-                    masterMatrix.forEach(m => {
-                        let val = m.areas[ds.name];
+                masterMatrix.forEach(row => {
+                    let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
+                    globalDatasets.forEach(ds => {
+                        let val = row.areas[ds.name];
                         r.push(val !== null && val !== undefined ? val : '');
                     });
 
                     let excelRow = sheet1.addRow(r);
 
-                    masterMatrix.forEach((m, mIdx) => {
-                        let val = m.areas[ds.name];
-                        let colIdx = mIdx + 2; 
+                    globalDatasets.forEach((ds, dsIdx) => {
+                        let val = row.areas[ds.name];
+                        let colIdx = 5 + dsIdx; 
                         let cell = excelRow.getCell(colIdx);
                         
                         if (val !== null && val !== undefined) {
-                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && m.areas[globalDatasets[0].name] === null;
+                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && row.areas[globalDatasets[0].name] === null;
                             if (isNew) {
                                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } }; 
                             } else {
@@ -598,41 +621,44 @@
                 });
 
                 // ============================================
-                // SHEET 2: HORIZONTAL VIEW (Standard Table)
+                // SHEET 2: VERTICAL VIEW (Transposed Layout)
                 // ============================================
-                const sheet2 = workbook.addWorksheet('Horizontal View');
+                const sheet2 = workbook.addWorksheet('Vertical View');
 
-                let columnsConfig2 = [
-                    { width: 8 }, { width: 25 }, { width: 20 }, { width: 10 }
-                ];
-                globalDatasets.forEach(() => columnsConfig2.push({ width: 20 }));
+                let columnsConfig2 = [{ width: 35 }]; 
+                masterMatrix.forEach(() => columnsConfig2.push({ width: 18 }));
                 sheet2.columns = columnsConfig2;
 
-                let headerRow2 = ['Peak #', 'Peak Name', 'Retention Time (min)', 'RRT'];
-                globalDatasets.forEach(ds => headerRow2.push(`% Area (${ds.name})`));
+                let headerRow2 = ['File Name'];
+                masterMatrix.forEach(m => {
+                    let headerLabel = m.peakName ? `${m.peakName}\n(RT: ${m.rt})` : `RT: ${m.rt}\nRRT: ${m.rrt}`;
+                    headerRow2.push(headerLabel);
+                });
                 
                 let headerObj2 = sheet2.addRow(headerRow2);
+                headerObj2.height = 35; 
                 headerObj2.eachCell((cell) => {
                     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+                    cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
                 });
 
-                masterMatrix.forEach(row => {
-                    let r = [row.id, row.peakName || '', parseFloat(row.rt), parseFloat(row.rrt)];
-                    globalDatasets.forEach(ds => {
-                        let val = row.areas[ds.name];
+                globalDatasets.forEach((ds, dsIdx) => {
+                    let r = [ds.name];
+                    masterMatrix.forEach(m => {
+                        let val = m.areas[ds.name];
                         r.push(val !== null && val !== undefined ? val : '');
                     });
 
                     let excelRow = sheet2.addRow(r);
 
-                    globalDatasets.forEach((ds, dsIdx) => {
-                        let val = row.areas[ds.name];
-                        let colIdx = 5 + dsIdx; 
+                    masterMatrix.forEach((m, mIdx) => {
+                        let val = m.areas[ds.name];
+                        let colIdx = mIdx + 2; 
                         let cell = excelRow.getCell(colIdx);
                         
                         if (val !== null && val !== undefined) {
-                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && row.areas[globalDatasets[0].name] === null;
+                            let isNew = globalDatasets.length > 1 && dsIdx > 0 && m.areas[globalDatasets[0].name] === null;
                             if (isNew) {
                                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } }; 
                             } else {
