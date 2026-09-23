@@ -20,7 +20,7 @@
     <header class="bg-indigo-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold tracking-wide">🔬 HPLC Chromatogram & Peak Comparator</h1>
-            <p class="text-xs text-indigo-200">Hybrid Spatial-Numeric Parser & Multi-Directional Export Engine</p>
+            <p class="text-xs text-indigo-200">Ultimate Spatial-Left Parsing & Multi-Sheet Excel Engine</p>
         </div>
         <div class="flex gap-3">
             <button onclick="resetAll()" class="bg-rose-700 hover:bg-rose-600 text-xs px-3 py-2 rounded font-medium transition">Reset / Clear All Data</button>
@@ -39,7 +39,7 @@
                     <div id="drop-zone" class="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-lg p-6 text-center cursor-pointer bg-indigo-50/50 transition flex flex-col items-center justify-center">
                         <svg class="w-10 h-10 text-indigo-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <p class="text-sm font-medium text-slate-700">Drag & drop HPLC PDF reports or Excel (.xlsx) files here</p>
-                        <p class="text-xs text-slate-500 mt-1">Multi-page parsing guarantees extraction of 50+ peak long methods</p>
+                        <p class="text-xs text-slate-500 mt-1">Multi-page peak extraction with auto-name mapping</p>
                         <input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xls" class="hidden">
                     </div>
                 </div>
@@ -130,7 +130,7 @@
     </main>
 
     <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
-        HPLC Automated PDF & Excel Sync Comparator • Hybrid Parsing & Dual-Export Engine
+        HPLC Automated PDF & Excel Sync Comparator • Ultimate Parsing & Export Engine
     </footer>
 
     <script>
@@ -163,7 +163,7 @@
             fileInput.value = ''; 
         }
 
-        // --- UPGRADED HYBRID PARSER FOR LONG MULTI-PAGE REPORTS ---
+        // --- FIXED: SPATIAL-LEFT PEAK NAME EXTRACTION ---
         async function parseHplcPdf(file) {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -187,20 +187,18 @@
                         else rowsMap[matchedY].push(item);
                     });
 
-                    let sortedYs = Object.keys(rowsMap).sort((a, b) => b - a); // Descending Y (Top to bottom of page)
+                    let sortedYs = Object.keys(rowsMap).sort((a, b) => b - a);
 
-                    let nameX = null, rtX = null, areaX = null;
+                    let rtX = null, areaX = null;
                     let headerFound = false;
 
                     for (let y of sortedYs) {
-                        let rowItems = rowsMap[y];
+                        let rowItems = rowsMap[y].sort((a,b) => a.x - b.x);
                         let rowJoined = rowItems.map(item => item.str.toLowerCase()).join(' ');
 
-                        // Detect Header Row
                         if ((rowJoined.includes('rt') || rowJoined.includes('ret')) && rowJoined.includes('area')) {
                             rowItems.forEach(item => {
                                 let str = item.str.toLowerCase();
-                                if (str.includes('name') || str.includes('compound')) nameX = item.x;
                                 if (str.includes('ret') || str === 'rt') rtX = item.x;
                                 if (str.includes('area') && str.includes('%')) areaX = item.x;
                             });
@@ -214,39 +212,49 @@
                                 headerFound = true;
                                 let headerY = parseFloat(y);
                                 
-                                // Extract Data Below Header
                                 for (let dataY of sortedYs) {
                                     if (parseFloat(dataY) < headerY) {
-                                        let dataRow = rowsMap[dataY];
+                                        let dataRow = rowsMap[dataY].sort((a,b) => a.x - b.x);
                                         let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
                                         
-                                        // Widened spatial window (60px) to catch right-aligned numbers under center-aligned headers
                                         let rtItem = dataRow.find(it => Math.abs(it.x - rtX) < 60);
                                         let areaItem = dataRow.find(it => areaX !== null && Math.abs(it.x - areaX) < 60);
-                                        let nameItem = dataRow.find(it => nameX !== null && Math.abs(it.x - nameX) < 80);
 
-                                        let rtVal = undefined;
-                                        let areaVal = undefined;
-                                        let peakName = '';
+                                        let rtVal = undefined, areaVal = undefined, peakName = '';
 
-                                        // Try Spatial Extraction First
                                         if (rtItem && areaItem) {
                                             let parsedRt = parseFloat(rtItem.str);
                                             let parsedArea = parseFloat(areaItem.str);
                                             if (!isNaN(parsedRt) && !isNaN(parsedArea) && parsedRt >= 0.1 && parsedRt <= 150.0 && parsedArea >= 0.0 && parsedArea <= 100.0) {
                                                 rtVal = parsedRt;
                                                 areaVal = parsedArea;
-                                                if (nameItem && isNaN(parseFloat(nameItem.str))) peakName = nameItem.str;
+                                                
+                                                // Extract everything to the left of RT
+                                                let beforeRt = dataRow.filter(it => it.x < (rtItem.x - 20));
+                                                // Remove the "Peak #" which is usually the very first number
+                                                if (beforeRt.length > 0 && !isNaN(parseFloat(beforeRt[0].str)) && beforeRt[0].str.trim().length <= 3) {
+                                                    beforeRt.shift(); 
+                                                }
+                                                peakName = beforeRt.map(it => it.str).join(' ').trim();
                                             }
                                         }
 
-                                        // Fallback Hybrid Extraction (If spatial misses due to severe text misalignment)
+                                        // Fallback Hybrid Extraction
                                         if (rtVal === undefined && nums.length >= 2) {
                                             let tempRt = nums.find(n => n >= 0.1 && n <= 150.0 && n.toString().includes('.'));
                                             let tempArea = nums.find(n => n >= 0.0 && n <= 100.0 && n !== tempRt && n.toString().includes('.'));
                                             if (tempRt !== undefined && tempArea !== undefined) {
                                                 rtVal = tempRt;
                                                 areaVal = tempArea;
+                                                
+                                                let rtItemMatch = dataRow.find(it => it.str.includes(tempRt.toString()));
+                                                if (rtItemMatch) {
+                                                    let beforeRt = dataRow.filter(it => it.x < (rtItemMatch.x - 20));
+                                                    if (beforeRt.length > 0 && !isNaN(parseFloat(beforeRt[0].str)) && beforeRt[0].str.trim().length <= 3) {
+                                                        beforeRt.shift();
+                                                    }
+                                                    peakName = beforeRt.map(it => it.str).join(' ').trim();
+                                                }
                                             }
                                         }
 
@@ -257,24 +265,33 @@
                                         }
                                     }
                                 }
-                                break; // Done processing page containing header
+                                break; 
                             }
                         }
                     }
 
-                    // Strict Numeric Extraction for Pages Without Headers (e.g., Page 2 of a long peak table)
+                    // Strict Numeric Extraction for Pages Without Headers
                     if (!headerFound) {
                         sortedYs.forEach(dataY => {
-                            let dataRow = rowsMap[dataY];
+                            let dataRow = rowsMap[dataY].sort((a,b) => a.x - b.x);
                             let nums = dataRow.map(d => parseFloat(d.str)).filter(n => !isNaN(n));
                             
-                            // Must contain decimal '.' to prevent catching Integer Peak #s like "1.0", "2.0"
                             let rtVal = nums.find(n => n >= 0.1 && n <= 150.0 && n.toString().includes('.'));
                             let areaVal = nums.find(n => n >= 0.0 && n <= 100.0 && n !== rtVal && n.toString().includes('.'));
                             
                             if (rtVal !== undefined && areaVal !== undefined) {
+                                let rtItemMatch = dataRow.find(it => it.str.includes(rtVal.toString()));
+                                let peakName = '';
+                                if (rtItemMatch) {
+                                    let beforeRt = dataRow.filter(it => it.x < (rtItemMatch.x - 20));
+                                    if (beforeRt.length > 0 && !isNaN(parseFloat(beforeRt[0].str)) && beforeRt[0].str.trim().length <= 3) {
+                                        beforeRt.shift();
+                                    }
+                                    peakName = beforeRt.map(it => it.str).join(' ').trim();
+                                }
+                                
                                 if (!extractedPeaks.some(p => Math.abs(p.rt - rtVal) < 0.01)) {
-                                    extractedPeaks.push({ rt: rtVal, area: areaVal, peakName: '' });
+                                    extractedPeaks.push({ rt: rtVal, area: areaVal, peakName: peakName });
                                 }
                             }
                         });
@@ -297,45 +314,69 @@
             }
         }
 
+        // --- FIXED: EXCEL UPLOAD/IMPORT ---
         async function parseExcelImport(file) {
-            const buffer = await file.arrayBuffer();
-            const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(buffer);
-            
-            const sheet = workbook.worksheets.find(w => w.name === 'Horizontal View') || workbook.worksheets[0];
-            let headerRow = sheet.getRow(1).values; 
-            let importedDatasets = [];
-            let dsColMap = {}; 
-            
-            for (let i = 5; i < headerRow.length; i++) {
-                if (headerRow[i]) {
-                    let dsName = headerRow[i].toString().replace('% Area (', '').replace(')', '').trim();
-                    importedDatasets.push({ name: dsName, peaks: [] });
-                    dsColMap[i] = dsName;
-                }
-            }
-
-            sheet.eachRow((row, rowNumber) => {
-                if (rowNumber === 1) return; 
-
-                let peakName = row.getCell(2).value || '';
-                let rt = parseFloat(row.getCell(3).value);
+            try {
+                const buffer = await file.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(buffer);
                 
-                if (isNaN(rt)) return;
+                // Locate the standard Horizontal View sheet
+                const sheet = workbook.worksheets.find(w => w.name === 'Horizontal View') || workbook.worksheets[0];
+                if (!sheet) throw new Error("No worksheets found.");
 
-                for (let colIdx in dsColMap) {
-                    let areaVal = parseFloat(row.getCell(colIdx).value);
-                    if (!isNaN(areaVal) && areaVal > 0) {
-                        let ds = importedDatasets.find(d => d.name === dsColMap[colIdx]);
-                        ds.peaks.push({ rt: rt, area: areaVal, peakName: peakName.toString() });
+                let headerRow = sheet.getRow(1).values; 
+                let importedDatasets = [];
+                let dsColMap = {}; 
+                
+                // ExcelJS returns values mapped by 1-based indexes
+                headerRow.forEach((val, idx) => {
+                    if (idx >= 5 && val) {
+                        let headerText = val.toString();
+                        if (headerText.includes('% Area')) {
+                            let dsName = headerText.replace('% Area (', '').replace(')', '').trim();
+                            importedDatasets.push({ name: dsName, peaks: [] });
+                            dsColMap[idx] = dsName;
+                        }
                     }
-                }
-            });
+                });
 
-            importedDatasets.forEach(impDs => {
-                globalDatasets = globalDatasets.filter(d => d.name !== impDs.name);
-                globalDatasets.push(impDs);
-            });
+                if (Object.keys(dsColMap).length === 0) {
+                    alert("Could not identify specific dataset columns in Excel file. Make sure you upload a previously exported report.");
+                    return;
+                }
+
+                sheet.eachRow((row, rowNumber) => {
+                    if (rowNumber === 1) return; // Skip Header
+
+                    let peakNameCell = row.getCell(2);
+                    let peakName = peakNameCell.text || peakNameCell.value || '';
+                    
+                    let rtCell = row.getCell(3);
+                    let rt = parseFloat(rtCell.value);
+                    
+                    if (isNaN(rt)) return;
+
+                    Object.keys(dsColMap).forEach(colIdx => {
+                        let areaCell = row.getCell(Number(colIdx));
+                        let areaVal = parseFloat(areaCell.value);
+                        if (!isNaN(areaVal) && areaVal > 0) {
+                            let ds = importedDatasets.find(d => d.name === dsColMap[colIdx]);
+                            if (ds) {
+                                ds.peaks.push({ rt: rt, area: areaVal, peakName: peakName.toString().trim() });
+                            }
+                        }
+                    });
+                });
+
+                importedDatasets.forEach(impDs => {
+                    globalDatasets = globalDatasets.filter(d => d.name !== impDs.name);
+                    globalDatasets.push(impDs);
+                });
+            } catch (err) {
+                console.error("Excel Import Error:", err);
+                alert("Failed to parse the Excel file. Please ensure it is a valid format.");
+            }
         }
 
         function resetAll() {
@@ -560,7 +601,6 @@
             renderUI();
         }
 
-        // --- SAFELY CONFIGURED DUAL EXCEL EXPORT ---
         async function exportToExcel() {
             try {
                 if (masterMatrix.length === 0) {
